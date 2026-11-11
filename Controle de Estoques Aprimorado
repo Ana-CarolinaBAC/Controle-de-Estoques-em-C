@@ -1,0 +1,275 @@
+#include <stdio.h>
+#include <string.h>
+#include <windows.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+void limpar_buffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF) ;
+}
+
+int main() {
+    char item[100];
+    int qntd;
+    int ID;
+    float valor;
+    char remov[100];
+    int qntd_r;
+    char linha[1000];
+    int encontrado = 0;
+    int opcao = 0;
+
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    do {
+        printf("\n==================================\n");
+        printf("        Controle de Estoque\n");
+        printf("==================================\n");
+        printf("1. Adicionar Item\n");
+        printf("2. Remover Item\n");
+        printf("3. Listar Estoque\n");
+        printf("4. Pesquisar\n");
+        printf("5. Sair\n");
+        printf("Selecione uma opção: ");
+
+        int lido = scanf("%d", &opcao);
+        if (lido == EOF) {
+            break;
+        }
+        limpar_buffer();
+
+        if (lido != 1) {
+            printf("Opção inválida! Tente novamente.\n");
+            continue;
+        }
+
+        switch (opcao) {
+            case 1: {
+                printf("Digite o nome do item: ");
+                fgets(item, sizeof(item), stdin);
+                item[strcspn(item, "\n")] = '\0';
+
+                printf("Digite a quantidade: ");
+                scanf("%d", &qntd);
+                printf("Digite o ID: ");
+                scanf("%d", &ID);
+                printf("Digite o valor unitário: ");
+                scanf("%f", &valor);
+                limpar_buffer();
+
+                FILE *arquivo = fopen("inventory.txt", "a");
+                if (arquivo == NULL) {
+                    printf("Erro ao abrir o arquivo para escrita.\n");
+                    break;
+                }
+                fprintf(arquivo, "%s\n", item);
+                fprintf(arquivo, "%d\n", qntd);
+                fprintf(arquivo, "%d\n", ID);
+                fprintf(arquivo, "%.2f\n", valor);
+                fclose(arquivo);
+
+                printf("Item adicionado com sucesso!\n");
+                break;
+            }
+            case 2: {
+                printf("Digite o nome do item: ");
+                fgets(remov, sizeof(remov), stdin);
+                remov[strcspn(remov, "\n")] = '\0';
+
+                printf("Digite a quantidade a ser removida: ");
+                scanf("%d", &qntd_r);
+                limpar_buffer();
+
+                FILE *arquivo = fopen("inventory.txt", "r");
+                if (arquivo == NULL) {
+                    printf("Item não encontrado (Arquivo inexistente).\n");
+                    break;
+                }
+
+                FILE *tempo = fopen("temporary.txt", "w");
+                if (tempo == NULL) {
+                    printf("Erro ao criar arquivo temporário.\n");
+                    fclose(arquivo);
+                    break;
+                }
+
+                encontrado = 0;
+                
+                while (fgets(linha, sizeof(linha), arquivo) != NULL) {
+                    char linha_qtd[100];
+                    char linha_id[100];
+                    char linha_valor[100];
+
+                    if (fgets(linha_qtd, sizeof(linha_qtd), arquivo) == NULL ||
+                        fgets(linha_id, sizeof(linha_id), arquivo) == NULL ||
+                        fgets(linha_valor, sizeof(linha_valor), arquivo) == NULL) {
+                        break;
+                    }
+
+                    linha[strcspn(linha, "\n")] = '\0';
+                    linha_qtd[strcspn(linha_qtd, "\n")] = '\0';
+                    linha_id[strcspn(linha_id, "\n")] = '\0';
+                    linha_valor[strcspn(linha_valor, "\n")] = '\0';
+
+                    int qtd_atual = atoi(linha_qtd);
+
+                    if (strcmp(linha, remov) == 0) {
+                        encontrado = 1;
+                        if (qntd_r > qtd_atual) {
+                            printf("Estoque insuficiente. Quantidade disponível: %d\n", qtd_atual);
+                            fprintf(tempo, "%s\n%s\n%s\n%s\n", linha, linha_qtd, linha_id, linha_valor);
+                        } else if (qntd_r == qtd_atual) {
+                            printf("Item removido do estoque!\n");
+                        } else {
+                            fprintf(tempo, "%s\n%d\n%s\n%s\n", linha, qtd_atual - qntd_r, linha_id, linha_valor);
+                            printf("Quantidade atualizada com sucesso!\n");
+                        }
+                    } else {
+                        fprintf(tempo, "%s\n%s\n%s\n%s\n", linha, linha_qtd, linha_id, linha_valor);
+                    }
+                }
+
+                fclose(tempo);
+                fclose(arquivo);
+
+                if (encontrado == 1) {
+                    remove("inventory.txt");
+                    rename("temporary.txt", "inventory.txt");
+                } else {
+                    printf("Item não encontrado.\n");
+                    remove("temporary.txt");
+                }
+                break;
+            }
+            case 3: {
+                FILE *arqlist = fopen("inventory.txt", "r");
+                int total = 0;
+
+                if (arqlist != NULL) {
+                    char nome[100];
+                    char linha_qtd[100];
+                    char linha_id[100];
+                    char linha_valor[100];
+
+                    while (fgets(nome, sizeof(nome), arqlist) != NULL &&
+                           fgets(linha_qtd, sizeof(linha_qtd), arqlist) != NULL &&
+                           fgets(linha_id, sizeof(linha_id), arqlist) != NULL &&
+                           fgets(linha_valor, sizeof(linha_valor), arqlist) != NULL) {
+
+                        nome[strcspn(nome, "\n")] = '\0';
+                        int q = atoi(linha_qtd);
+                        float v = atof(linha_valor);
+
+                        if (total == 0) {
+                            printf("=============================\n");
+                            printf("        Estoque Atual\n");
+                            printf("=============================\n");
+                        } else {
+                            printf("\n-----------------------------\n");
+                        }
+
+                        printf("Nome: %s\n", nome);
+                        printf("Quantidade: %d\n", q);
+                        printf("ID: %d\n", atoi(linha_id));
+                        printf("Valor unitário: R$ %.2f\n", v);
+                        printf("Valor Total: R$ %.2f\n", v * q);
+                        total++;
+                    }
+                    fclose(arqlist);
+                }
+
+                if (total == 0) {
+                    printf("O estoque está vazio.\n");
+                }
+                break;
+            }
+            case 4: {
+                char pesquisa[100];
+                int resposta = 0;
+
+                printf("Pesquisar por:\n");
+                printf("1. Nome\n");
+                printf("2. ID\n");
+                printf("Escolha: ");
+
+                if (scanf("%d", &resposta) != 1 || (resposta != 1 && resposta != 2)) {
+                    limpar_buffer();
+                    printf("Opção inválida!\n");
+                    break;
+                }
+                limpar_buffer();
+
+                int id_busca = 0;
+                if (resposta == 1) {
+                    printf("Digite o nome (ou parte dele): ");
+                    fgets(pesquisa, sizeof(pesquisa), stdin);
+                    pesquisa[strcspn(pesquisa, "\n")] = '\0';
+                } else {
+                    printf("Digite o ID: ");
+                    if (scanf("%d", &id_busca) != 1) {
+                        limpar_buffer();
+                        printf("ID inválido!\n");
+                        break;
+                    }
+                    limpar_buffer();
+                }
+
+                FILE *arqbusca = fopen("inventory.txt", "r");
+                if (arqbusca == NULL) {
+                    printf("O estoque está vazio.\n");
+                    break;
+                }
+
+                char nome[100];
+                char linha_qtd[100];
+                char linha_id[100];
+                char linha_valor[100];
+                int achou = 0;
+
+                while (fgets(nome, sizeof(nome), arqbusca) != NULL &&
+                       fgets(linha_qtd, sizeof(linha_qtd), arqbusca) != NULL &&
+                       fgets(linha_id, sizeof(linha_id), arqbusca) != NULL &&
+                       fgets(linha_valor, sizeof(linha_valor), arqbusca) != NULL) {
+
+                    nome[strcspn(nome, "\n")] = '\0';
+                    int q = atoi(linha_qtd);
+                    int id = atoi(linha_id);
+                    float v = atof(linha_valor);
+
+                    int igual;
+                    if (resposta == 1) {
+                        igual = (strstr(nome, pesquisa) != NULL);
+                    } else {
+                        igual = (id == id_busca);
+                    }
+
+                    if (igual) {
+                        printf("\n-----------------------------\n");
+                        printf("Nome: %s\n", nome);
+                        printf("Quantidade: %d\n", q);
+                        printf("ID: %d\n", id);
+                        printf("Valor unitário: R$ %.2f\n", v);
+                        printf("Valor Total: R$ %.2f\n", v * q);
+                        achou++;
+                    }
+                }
+                fclose(arqbusca);
+
+                if (achou == 0) {
+                    printf("Nenhum item encontrado.\n");
+                }
+                break;
+            }
+            case 5:
+                printf("Obrigado por usar o Controle de Estoques! Até a próxima.\n");
+                break;
+            default:
+                printf("Opção inválida! Tente novamente.\n");
+                break;
+        }
+    } while (opcao != 5);
+
+    return 0;
+}
